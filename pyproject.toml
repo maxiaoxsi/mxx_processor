@@ -1,0 +1,16 @@
+[project]
+name = "mxx_processor"
+version = "0.1.0"
+description = "A processor for ReID and related tasks"
+authors = [
+    { name="maxiaoxiao", email="maxiaoxsi@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
