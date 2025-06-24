@@ -11,7 +11,7 @@ from .annotation import Annotation
 
 class Img:
     def __init__(self, dir_sub, name, suff, is_smplx, id_video, 
-                    idx_frame, dataset, person, is_check_annot) -> None:
+                    idx_frame, dataset, person, logger, is_check_annot) -> None:
         self._dir = dir_sub
         self._name = name
         self._suff = suff
@@ -20,11 +20,12 @@ class Img:
         self._is_smplx = is_smplx
         self._dataset = dataset
         self._person = person
+        self._logger = logger
         self._annot = Annotation(
             dir_annot=self.get_dir('annot'),
             path_annot=self.get_path('annot'), 
-            path_log="./log.txt", 
             img=self,
+            logger=self._logger, 
             is_check=is_check_annot,
         )
 
@@ -79,6 +80,7 @@ class Img:
     '''
     def is_smplx(self):
         return self._is_smplx
+    
     '''
     is img belong to a video
     '''
@@ -99,14 +101,21 @@ class Img:
 
     
     def calib_score(self, img_tgt):
-        self._score = float(self['mark_direction'])
+        self._score = float(self['mark_drn'])
         if self['riding'] == img_tgt['riding']:
             self._score = self._score + 2
         if self['hand-carried'] == img_tgt['hand-carried']:
             self._score = self._score + 2
         return
     
+    def keys(self):
+        return self._annot.keys()
+    
+    def rename_key_annot(self, key, key_new):
+        self._annot.rename_key(key, key_new)
 
+    def remove_key_annot(self, key):
+        self._annot.remove_key(key)
 
 
 
@@ -195,31 +204,31 @@ class Img:
             return f", with a hand-carried item"
         return ""
 
-    def get_text_direction(self):
+    def get_text_drn(self):
         if self.is_match_dscrpt('riding_vl'):
             text_walk = 'riding'
         else:
             text_walk = 'walking'
-        direction = self._dscrpt['direction']
-        if direction == 'none':
-            direction = self._dscrpt['direction_vl']
-        if direction == 'left':
+        drn = self._dscrpt['drn']
+        if drn == 'none':
+            drn = self._dscrpt['drn_vl']
+        if drn == 'left':
             return f', {text_walk} from right to left'
-        if direction == 'right':
+        if drn == 'right':
             return f', {text_walk} from left to right'
-        if direction == 'front':
+        if drn == 'front':
             return f', {text_walk} toward the camera'
-        if direction == 'back':
+        if drn == 'back':
             return f', {text_walk} away from the camera'
-        return f', {text_walk} {direction}'
+        return f', {text_walk} {drn}'
 
     def get_text_tgt(self):
         text_upper_cloth = self.get_text_upper_cloth()
         text_bottom = self.get_text_bottom()
         text_backpack = self.get_text_backpack()
         text_hand_carried = self.get_text_hand_carried()
-        text_direction = self.get_text_direction()
-        text = f'a photo of a people wearing {text_upper_cloth} and {text_bottom}{text_backpack}{text_hand_carried}{text_direction}.'
+        text_drn = self.get_text_drn()
+        text = f'a photo of a people wearing {text_upper_cloth} and {text_bottom}{text_backpack}{text_hand_carried}{text_drn}.'
         # a photo of a people wearing red t-shirt and dark shorts, with a backpack, walking from left to right
         return text
 

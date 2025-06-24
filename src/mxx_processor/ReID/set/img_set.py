@@ -3,6 +3,7 @@ import random
 from .set_base import SetBase
 from ..object import Img
 from ..utils.util import select_matched_img, add_img_by_score
+from tqdm import tqdm
 
 
 
@@ -22,10 +23,10 @@ class ImgSet(SetBase):
         """Add an image to the set, categorizing it as visible or infrared."""
         name_img = img.get_name_img()
         self.add_item(name_img, img)
-        if img["visible"]:
+        if img["is_visible"]:
             self._list_visible.append(img)
-            if img["direction"] in self._imgList_drn_dict:
-                self._imgList_drn_dict[img["direction"]].append(img)
+            if img["drn"] in self._imgList_drn_dict:
+                self._imgList_drn_dict[img["drn"]].append(img)
         else:
             self._list_infrared.append(img)
 
@@ -63,5 +64,11 @@ class ImgSet(SetBase):
         idx_img_tgt = idx_img_tgt % len(img_list)
         return img_list[idx_img_tgt]
     
+    def rename_key_annot(self, key, key_new):
+        for img in tqdm(self._list):
+            img.rename_key_annot(key, key_new)
 
+    def remove_key_annot(self, key):
+        for img in tqdm(self._list):
+            img.remove_key_annot(key)
     

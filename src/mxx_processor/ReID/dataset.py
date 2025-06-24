@@ -13,11 +13,13 @@ from .utils.save_data import save_img_pil, save_dscrpt_list, save_img_tensor, sa
 from .utils import get_utils
 from .set import PersonSet, ImgSet
 from .object import Person, Img
+from ..log.logger import logger
 
 class ReIDDataset(Dataset):
     def __init__(
         self,
         path_cfg, # yaml
+        path_log="./log.txt",
         is_save=True,
         is_check_annot=False,
         width_scale=(1, 1),
@@ -30,12 +32,12 @@ class ReIDDataset(Dataset):
         self._img_size_pad=img_size_pad
         self._stage=stage
         self._n_frame = n_frame
+        self._logger = logger(path_log=path_log)
 
         cfg = self._load_cfg(path_cfg)
         self._dir = cfg['dir']
         self._id = cfg["id_dataset"]
         self._visible = cfg["visible"]
-        # dir_reid=self._dir["reid"]
 
         self._init_transforms(width_scale, height_scale)
 
@@ -316,6 +318,7 @@ class ReIDDataset(Dataset):
                 idx_frame=img_dict["idx_frame"],
                 dataset=self,
                 person=person,
+                logger=self._logger,
                 is_check_annot=is_check_annot,
             )
             person.add_img(img)
@@ -350,3 +353,9 @@ class ReIDDataset(Dataset):
     
     def get_n_img(self):
         return len(self._img_set)
+    
+    def rename_key_annot(self, key, key_new):
+        self._img_set.rename_key_annot(key, key_new)
+
+    def remove_key_annot(self, key):
+        self._img_set.remove_key_annot(key)

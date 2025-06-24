@@ -124,6 +124,51 @@ class ImageViewer(QMainWindow):
         label.setScaledContents(False)
         return label
 
+    def _create_direction_table(self):
+        table = QTableWidget()
+        table.setColumnCount(1)
+        table.setHorizontalHeaderLabels(["文件名"])
+        header = table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+        return table
+
+    def _populate_direction_table(self, table, img_list):
+        table.setRowCount(0)
+        if not img_list:
+            return
+        table.setRowCount(len(img_list))
+        for i, img_item in enumerate(img_list):
+            try:
+                name = img_item.get_name_img()
+                table.setItem(i, 0, QTableWidgetItem(name))
+            except Exception as e:
+                print(f"Error getting img name: {e}")
+                table.setItem(i, 0, QTableWidgetItem("Error"))
+
+    def _populate_attribute_view(self, model, img_obj):
+        """Helper function to populate a tree model with image attributes."""
+        model.clear()
+        model.setHorizontalHeaderLabels(["属性", "值"])
+        if not img_obj or not hasattr(img_obj, 'keys'):
+            return
+        
+        root_item = model.invisibleRootItem()
+        # Ensure it's a 2-column model for attributes
+        if model.columnCount() < 2:
+            model.setColumnCount(2)
+            
+        keys = list(img_obj.keys())
+        for key in keys:
+            try:
+                value_str = str(img_obj[key])
+            except Exception:
+                value_str = "Error reading value"
+            key_item = QStandardItem(str(key))
+            key_item.setEditable(False)
+            value_item = QStandardItem(value_str)
+            value_item.setEditable(False)
+            root_item.appendRow([key_item, value_item])
+
     def initUI(self):
         # 主窗口部件和布局
         main_widget = QWidget()
@@ -137,16 +182,21 @@ class ImageViewer(QMainWindow):
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
         
-        # 左侧顶部按钮栏
+        left_splitter = QSplitter(Qt.Vertical)
+
+        # 左侧上部: 列表
+        top_left_widget = QWidget()
+        top_left_layout = QVBoxLayout(top_left_widget)
+        top_left_layout.setContentsMargins(0,0,0,0)
+
         self.left_btn_bar = QHBoxLayout()
         self.btn_back = QPushButton("返回")
         self.btn_back.setVisible(False)  # 初始隐藏返回按钮
         self.btn_back.clicked.connect(self.on_back_clicked)
         self.left_btn_bar.addWidget(self.btn_back)
         self.left_btn_bar.addStretch()
-        left_layout.addLayout(self.left_btn_bar)
+        top_left_layout.addLayout(self.left_btn_bar)
         
-        # 左侧多界面管理
         self.left_stack = QStackedWidget()
         
         # 第一级：行人ID列表
@@ -175,7 +225,7 @@ class ImageViewer(QMainWindow):
         self.tree_view.clicked.connect(self.on_tree_view_person_clicked)
         self.left_stack.addWidget(self.tree_view)
         
-        # 第二级：具体ID下的图片列表（示例）
+        # 第二级：具体ID下的图片列表
         self.detail_view = QTreeView()
         self.detail_model = QStandardItemModel()
         self.detail_model.setHorizontalHeaderLabels(["图片"])
@@ -187,9 +237,18 @@ class ImageViewer(QMainWindow):
         self.detail_view.clicked.connect(self.on_detail_view_clicked)
         self.left_stack.addWidget(self.detail_view)
         
-        left_layout.addWidget(self.left_stack)
+        top_left_layout.addWidget(self.left_stack)
+        left_splitter.addWidget(top_left_widget)
         
-        # 添加左侧区域到分割器
+        # 左侧下部: 主图属性
+        self.left_attr_tree_view = QTreeView()
+        self.left_attr_tree_model = QStandardItemModel()
+        self.left_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
+        self.left_attr_tree_view.setModel(self.left_attr_tree_model)
+        left_splitter.addWidget(self.left_attr_tree_view)
+        left_splitter.setSizes([600, 200])
+
+        left_layout.addWidget(left_splitter)
         splitter.addWidget(left_widget)
         
         # 中间图片显示区域
@@ -279,74 +338,44 @@ class ImageViewer(QMainWindow):
         
         self.scroll_area.setWidget(self.grid_widget)
         
-        # 右侧表格区域
+        # 右侧区域
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
         
-        # ====== 新增：顶部按钮栏 ======
-        self.right_btn_bar = QHBoxLayout()
-        self.btn_table1 = QPushButton("表格1")
-        self.combo_table = QComboBox()
-        self.combo_table.addItem("表格2")
-        self.combo_table.addItem("表格3")
-        self.right_btn_bar.addWidget(self.btn_table1)
-        self.right_btn_bar.addWidget(self.combo_table)
-        self.right_btn_bar.addStretch()
-        right_layout.addLayout(self.right_btn_bar)
+        right_splitter = QSplitter(Qt.Vertical)
+
+        # Top widget with combo box and tree view
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setContentsMargins(0,0,0,0)
+        self.orientation_combo_right = QComboBox()
+        self.orientation_combo_right.addItems(["front", "back", "left", "right"])
+        self.orientation_combo_right.currentIndexChanged.connect(self.on_orientation_changed)
+        top_layout.addWidget(self.orientation_combo_right)
+        self.right_top_tree_view = QTreeView()
+        self.right_top_tree_model = QStandardItemModel()
+        self.right_top_tree_model.setHorizontalHeaderLabels(["文件名"])
+        self.right_top_tree_view.setModel(self.right_top_tree_model)
+        self.right_top_tree_view.clicked.connect(self.on_right_top_tree_view_clicked)
+        top_layout.addWidget(self.right_top_tree_view)
+        right_splitter.addWidget(top_widget)
+
+        # Middle widget for image preview
+        self._img_label_right_preview = self._get_img_label()
+        self._img_label_right_preview.setText("点击上方列表中的图片进行预览")
+        right_splitter.addWidget(self._img_label_right_preview)
+
+        # Bottom widget for attributes of the PREVIEWED image
+        self.right_attr_tree_view = QTreeView()
+        self.right_attr_tree_model = QStandardItemModel()
+        self.right_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
+        self.right_attr_tree_view.setModel(self.right_attr_tree_model)
+        right_splitter.addWidget(self.right_attr_tree_view)
         
-        # ====== 新增：QStackedWidget管理多个界面 ======
-        self.right_stack = QStackedWidget()
-        
-        # 第一个表格
-        self.table1 = QTableWidget()
-        self.table1.setColumnCount(3)
-        self.table1.setRowCount(2)
-        headers = ["ID", "朝向", "置信度"]
-        self.table1.setHorizontalHeaderLabels(headers)
-        self.table1.setItem(0, 0, QTableWidgetItem("001"))
-        self.table1.setItem(0, 1, QTableWidgetItem("正面"))
-        self.table1.setItem(0, 2, QTableWidgetItem("0.95"))
-        self.table1.setItem(1, 0, QTableWidgetItem("002"))
-        self.table1.setItem(1, 1, QTableWidgetItem("背面"))
-        self.table1.setItem(1, 2, QTableWidgetItem("0.88"))
-        header1 = self.table1.horizontalHeader()
-        header1.setSectionResizeMode(QHeaderView.Stretch)
-        self.right_stack.addWidget(self.table1)
-        
-        # 第二个表格（示例）
-        self.table2 = QTableWidget()
-        self.table2.setColumnCount(2)
-        self.table2.setRowCount(2)
-        self.table2.setHorizontalHeaderLabels(["属性A", "属性B"])
-        self.table2.setItem(0, 0, QTableWidgetItem("A1"))
-        self.table2.setItem(0, 1, QTableWidgetItem("B1"))
-        self.table2.setItem(1, 0, QTableWidgetItem("A2"))
-        self.table2.setItem(1, 1, QTableWidgetItem("B2"))
-        header2 = self.table2.horizontalHeader()
-        header2.setSectionResizeMode(QHeaderView.Stretch)
-        self.right_stack.addWidget(self.table2)
-        
-        # 第三个表格（新页面）
-        self.table3 = QTableWidget()
-        self.table3.setColumnCount(2)
-        self.table3.setRowCount(2)
-        self.table3.setHorizontalHeaderLabels(["X", "Y"])
-        self.table3.setItem(0, 0, QTableWidgetItem("X1"))
-        self.table3.setItem(0, 1, QTableWidgetItem("Y1"))
-        self.table3.setItem(1, 0, QTableWidgetItem("X2"))
-        self.table3.setItem(1, 1, QTableWidgetItem("Y2"))
-        header3 = self.table3.horizontalHeader()
-        header3.setSectionResizeMode(QHeaderView.Stretch)
-        self.right_stack.addWidget(self.table3)
-        
-        # 添加QStackedWidget到右侧布局
-        right_layout.addWidget(self.right_stack)
-        
-        # 按钮和下拉菜单切换界面
-        self.btn_table1.clicked.connect(lambda: self.right_stack.setCurrentIndex(0))
-        self.combo_table.currentIndexChanged.connect(lambda idx: self.right_stack.setCurrentIndex(idx+1))
-        
+        right_splitter.setSizes([300, 300, 200]) # Initial sizes
+        right_layout.addWidget(right_splitter)
+
         # 添加到中间布局
         middle_layout.addWidget(search_widget)
         middle_layout.addWidget(self.toolbar)
@@ -357,7 +386,7 @@ class ImageViewer(QMainWindow):
         splitter.addWidget(right_widget)
         
         # 设置分割比例
-        splitter.setSizes([200, 600, 200])
+        splitter.setSizes([300, 600, 300])
         
         # 主布局
         main_layout.addWidget(splitter)
@@ -378,7 +407,7 @@ class ImageViewer(QMainWindow):
             if not self._dataset:
                 QMessageBox.warning(self, "警告", "数据集未初始化")
                 return
-                
+            
             person = self._dataset.get_person(id_person)
             self._person_selected = person
             self.statusBar().showMessage(f"选中行人ID: {id_person}")
@@ -400,6 +429,7 @@ class ImageViewer(QMainWindow):
             QMessageBox.critical(self, "错误", f"加载行人信息失败: {str(e)}")
             print(f"加载行人信息错误: {traceback.format_exc()}")
     
+
     def on_detail_view_clicked(self, index):
         """点击详情视图中的图片项"""
         try:
@@ -409,11 +439,34 @@ class ImageViewer(QMainWindow):
                 return
                 
             self._img_tgt = self._person_selected[name_img]
-            img_ref_list, _, _ = self._person_selected._get_imgList_from_img_set(
+            self._imgList_matched_dict = None # Reset
+            
+            # --- Clear right panel ---
+            self.right_top_tree_model.clear()
+            self.right_top_tree_model.setHorizontalHeaderLabels(["文件名"])
+            self.right_attr_tree_model.clear()
+            self.right_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
+            self._img_label_right_preview.clear()
+            self._img_label_right_preview.setText("点击上方列表中的图片进行预览")
+
+            # --- Populate bottom-left view (Main Image Attributes) ---
+            self._populate_attribute_view(self.left_attr_tree_model, self._img_tgt)
+
+
+            (
+                img_ref_list,
+                _,
+                imgList_matched_dict
+            ) = self._person_selected._get_imgList_from_img_set(
                 stage=1,
                 idx_img_tgt=name_img,
                 is_discard=False,
             )
+            self._imgList_matched_dict = imgList_matched_dict
+
+            # --- Populate top view (Files) based on current combo box selection ---
+            self.on_orientation_changed(self.orientation_combo_right.currentIndex())
+
             self._img_ref_list = img_ref_list
             self.statusBar().showMessage(f"选中图片: {name_img}")
             # 展示选中的图片为5张图片
@@ -421,7 +474,45 @@ class ImageViewer(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"加载图片失败: {str(e)}")
             print(f"加载图片错误: {traceback.format_exc()}")
-    
+
+    def on_orientation_changed(self, index):
+        """Handle orientation selection change for the right panel."""
+        self.right_top_tree_model.clear()
+        self.right_top_tree_model.setHorizontalHeaderLabels(["文件名"])
+        self._img_label_right_preview.clear()
+        self._img_label_right_preview.setText("点击上方列表中的图片进行预览")
+
+        if not hasattr(self, '_imgList_matched_dict') or not self._imgList_matched_dict:
+            return
+
+        orientation = self.orientation_combo_right.itemText(index)
+        img_list = self._imgList_matched_dict.get(orientation, [])
+        
+        if img_list:
+            for img_item in img_list:
+                try:
+                    name = img_item.get_name_img()
+                    item_child = QStandardItem(name)
+                    item_child.setData(img_item, Qt.UserRole) # Associate Img object
+                    item_child.setEditable(False)
+                    self.right_top_tree_model.appendRow(item_child)
+                except Exception as e:
+                    print(f"Error getting img name for {orientation}: {e}")
+
+    def on_right_top_tree_view_clicked(self, index):
+        """Click on an image in the top right list to preview."""
+        try:
+            item = self.right_top_tree_model.itemFromIndex(index)
+            if item:
+                img_data = item.data(Qt.UserRole)
+                if img_data: # Check if Img object is associated
+                    self._set_pixmap(img=img_data, type_img="reid", label=self._img_label_right_preview)
+                    # Populate attributes for the previewed image
+                    self._populate_attribute_view(self.right_attr_tree_model, img_data)
+        except Exception as e:
+            QMessageBox.warning(self, "预览失败", f"无法加载图片预览: {str(e)}")
+            print(f"预览图片错误: {traceback.format_exc()}")
+
     def on_back_clicked(self):
         """点击返回按钮"""
         self.left_stack.setCurrentIndex(0)  # 返回到ID列表
@@ -429,7 +520,7 @@ class ImageViewer(QMainWindow):
     
     def get_image_files(self, folder):
         """获取文件夹中的所有图片文件"""
-        extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        extensions = ('.jpg', '.png', '.bmp', '.gif')
         image_files = []
         for root, dirs, files in os.walk(folder):
             for file in files:
@@ -443,7 +534,6 @@ class ImageViewer(QMainWindow):
                 label.setText("无对应视角")
                 return
             path_img = img.get_path(type_img)
-            print(path_img)
             pixmap_img = QPixmap(path_img)
             if pixmap_img.isNull():
                 label.setText("无法加载图片")
@@ -463,9 +553,7 @@ class ImageViewer(QMainWindow):
             if not self._img_tgt:
                 self.statusBar().showMessage("未选择目标图片")
                 return
-                
-            print(f"加载图片: {self._img_tgt}")
-            
+                            
             # 加载目标图片的四种视角
             self._set_pixmap(img=self._img_tgt, type_img="reid", label=self._img_label_tgt)
             self._set_pixmap(img=self._img_tgt, type_img="smplx_guidance", label=self._img_label_smplx)
@@ -473,7 +561,7 @@ class ImageViewer(QMainWindow):
             self._set_pixmap(img=self._img_tgt, type_img="foreground", label=self._img_label_foreground)
             
             # 加载参考图片列表
-            for i, (img, label) in enumerate(zip(self._img_ref_list, self._img_label_ref_list)):
+            for (img, label) in zip(self._img_ref_list, self._img_label_ref_list):
                 self._set_pixmap(img=img, type_img="reid", label=label)
             
             # 更新状态栏
