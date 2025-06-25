@@ -5,11 +5,89 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QFileSystemModel, QTreeView, QLabel, QPushButton, 
                              QScrollArea, QSplitter, QToolBar, QSizePolicy, QLineEdit,
                              QComboBox, QGridLayout, QTableWidget, QTableWidgetItem, QHeaderView,
-                             QStackedWidget, QMessageBox)
+                             QStackedWidget, QMessageBox, QStyledItemDelegate)
 from PyQt5.QtGui import QPixmap, QImage, QPalette, QTransform, QMouseEvent, QPainter, QColor, QFont, QStandardItemModel, QStandardItem
 from PyQt5.QtCore import Qt, QDir, QSize, QRect, QTimer, QThread, pyqtSignal
 
 from mxx_processor import ReIDDataset
+
+class AttributeDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.img_obj = None
+
+    def createEditor(self, parent, option, index):
+        if not self.img_obj:
+            return None
+            
+        model = index.model()
+        key_item = model.item(index.row(), 0)
+        if not key_item:
+            return None
+        key = key_item.text()
+        
+        key_bool_list = []
+        if hasattr(self.img_obj, 'get_key_bool_list'):
+            key_bool_list = self.img_obj.get_key_bool_list()
+        
+        key_str_list = []
+        if hasattr(self.img_obj, 'get_key_str_list'):
+            key_str_list = self.img_obj.get_key_str_list()
+
+        if key in key_bool_list:
+            editor = QComboBox(parent)
+            editor.addItems(["yes", "no"])
+            return editor
+        elif key in key_str_list:
+            return QLineEdit(parent)
+        else:
+            return None
+
+    def setEditorData(self, editor, index):
+        value = index.model().data(index, Qt.EditRole)
+        if isinstance(editor, QComboBox):
+            editor.setCurrentText(str(value))
+        elif isinstance(editor, QLineEdit):
+            editor.setText(str(value))
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QComboBox):
+            new_value = editor.currentText()
+        elif isinstance(editor, QLineEdit):
+            new_value = editor.text()
+        else:
+            super().setModelData(editor, model, index)
+            return
+
+        key_item = model.item(index.row(), 0)
+        key = key_item.text()
+        old_value = model.data(index, Qt.EditRole)
+
+        if str(old_value) == new_value:
+            return
+
+        reply = QMessageBox.question(self.parent(), '确认修改', 
+                                     f"确定要将属性 '{key}' 的值从 '{old_value}' 修改为 '{new_value}' 吗?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            try:
+                self.img_obj[key] = new_value
+                if hasattr(self.img_obj, 'save'):
+                    self.img_obj.save()
+                
+                model.setData(index, new_value, Qt.EditRole)
+                
+                window = self.parent()
+                if isinstance(window, QMainWindow):
+                    window.statusBar().showMessage(f"属性 '{key}' 已更新为 '{new_value}'", 3000)
+            except Exception as e:
+                QMessageBox.critical(self.parent(), "错误", f"修改属性失败: {str(e)}")
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
 
 class ImageLabel(QLabel):
     def __init__(self, parent=None):
@@ -93,6 +171,7 @@ class ImageViewer(QMainWindow):
         self._person_selected = None
         self._img_tgt = None
         self._img_ref_list = []
+        self._img_previewed_right = None
         
         # 初始化数据集
         try:
@@ -157,6 +236,16 @@ class ImageViewer(QMainWindow):
         if model.columnCount() < 2:
             model.setColumnCount(2)
             
+        key_bool_list = []
+        if hasattr(img_obj, 'get_key_bool_list'):
+            key_bool_list = img_obj.get_key_bool_list()
+        
+        key_str_list = []
+        if hasattr(img_obj, 'get_key_str_list'):
+            key_str_list = img_obj.get_key_str_list()
+        
+        editable_keys = key_bool_list + key_str_list
+
         keys = list(img_obj.keys())
         for key in keys:
             try:
@@ -166,7 +255,10 @@ class ImageViewer(QMainWindow):
             key_item = QStandardItem(str(key))
             key_item.setEditable(False)
             value_item = QStandardItem(value_str)
-            value_item.setEditable(False)
+            if key in editable_keys:
+                value_item.setEditable(True)
+            else:
+                value_item.setEditable(False)
             root_item.appendRow([key_item, value_item])
 
     def initUI(self):
@@ -245,6 +337,8 @@ class ImageViewer(QMainWindow):
         self.left_attr_tree_model = QStandardItemModel()
         self.left_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
         self.left_attr_tree_view.setModel(self.left_attr_tree_model)
+        self.left_attr_delegate = AttributeDelegate(self)
+        self.left_attr_tree_view.setItemDelegateForColumn(1, self.left_attr_delegate)
         left_splitter.addWidget(self.left_attr_tree_view)
         left_splitter.setSizes([600, 200])
 
@@ -371,6 +465,8 @@ class ImageViewer(QMainWindow):
         self.right_attr_tree_model = QStandardItemModel()
         self.right_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
         self.right_attr_tree_view.setModel(self.right_attr_tree_model)
+        self.right_attr_delegate = AttributeDelegate(self)
+        self.right_attr_tree_view.setItemDelegateForColumn(1, self.right_attr_delegate)
         right_splitter.addWidget(self.right_attr_tree_view)
         
         right_splitter.setSizes([300, 300, 200]) # Initial sizes
@@ -439,6 +535,7 @@ class ImageViewer(QMainWindow):
                 return
                 
             self._img_tgt = self._person_selected[name_img]
+            self.left_attr_delegate.img_obj = self._img_tgt
             self._imgList_matched_dict = None # Reset
             
             # --- Clear right panel ---
@@ -448,6 +545,8 @@ class ImageViewer(QMainWindow):
             self.right_attr_tree_model.setHorizontalHeaderLabels(["属性", "值"])
             self._img_label_right_preview.clear()
             self._img_label_right_preview.setText("点击上方列表中的图片进行预览")
+            self._img_previewed_right = None
+            self.right_attr_delegate.img_obj = None
 
             # --- Populate bottom-left view (Main Image Attributes) ---
             self._populate_attribute_view(self.left_attr_tree_model, self._img_tgt)
@@ -506,6 +605,8 @@ class ImageViewer(QMainWindow):
             if item:
                 img_data = item.data(Qt.UserRole)
                 if img_data: # Check if Img object is associated
+                    self._img_previewed_right = img_data
+                    self.right_attr_delegate.img_obj = img_data
                     self._set_pixmap(img=img_data, type_img="reid", label=self._img_label_right_preview)
                     # Populate attributes for the previewed image
                     self._populate_attribute_view(self.right_attr_tree_model, img_data)

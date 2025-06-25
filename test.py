@@ -7,7 +7,12 @@ if __name__ == '__main__':
         stage=1,             
     )
     processor = ReIDProcessor(dataset=dataset_market)
-    processor.remove_key_annot("riding")
+    # processor.remove_key_annot("bottoms_vl")
+    # processor.remove_key_annot("upper_vl")
+    # processor.rename_key_annot("style_bottoms_vl", "bottoms_vl")
+    processor.rename_key_annot("hand_carried_vl", "is_hand_carried_vl")
+
+
     # processor.remove_key_annot("color_upper_vlstyle_bottoms_vl")
     # processor.rename_key_annot("direction", "direction_smplx")
     # processor.rename_key_annot("riding_vl", "is_riding_vl")

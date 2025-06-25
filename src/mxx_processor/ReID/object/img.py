@@ -101,7 +101,7 @@ class Img:
 
     
     def calib_score(self, img_tgt):
-        self._score = float(self['mark_drn'])
+        self._score = float(self['mark_drn'] or 0.0)
         if self['riding'] == img_tgt['riding']:
             self._score = self._score + 2
         if self['hand-carried'] == img_tgt['hand-carried']:
@@ -111,6 +111,12 @@ class Img:
     def keys(self):
         return self._annot.keys()
     
+    def get_key_bool_list(self):
+        return self._annot.get_key_bool_list()
+    
+    def get_key_str_list(self):
+        return self._annot.get_key_str_list()
+
     def rename_key_annot(self, key, key_new):
         self._annot.rename_key(key, key_new)
 

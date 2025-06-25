@@ -26,18 +26,24 @@ class Annotation:
         self._annot = {}
         self._load_annot(dir_annot)
 
+    def get_key_bool_list(self):
+        return self._key_bool_list
+    
+    def get_key_str_list(self):
+        return self._key_str_list
+
     def _init_keys(self):
-        self._keys_bool = [
+        self._key_bool_list = [
             "is_backpack", "is_shoulder_bag", "is_hand_carried", 
             "is_visible",
         ]
         
-        self._keys_str = [
+        self._key_str_list = [
             "upper", "bottoms", 
             "width", "height", 
             "drn", "vec_drn", "mark_drn",
         ]
-        self._keys = self._keys_bool + self._keys_str
+        self._keys = self._key_bool_list + self._key_str_list
 
     def _load_annot(self, dir_annot):
         if os.path.exists(self._path_annot):
@@ -88,9 +94,9 @@ class Annotation:
         else:
             annot = "key error!"
             # raise Exception(f"annotation: search key:{idx} not exists in yaml file!")
-        if idx in self._keys_str:
+        if idx in self._key_str_list:
             return annot
-        elif idx in self._keys_bool:
+        elif idx in self._key_bool_list:
             if 'yes' in annot:
                 return True
             if 'no' in annot:
